@@ -65,15 +65,19 @@ public static class HostExtensions
                 IHttpClientFactory httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
                 ILoggerFactory loggerFactory = sp.GetRequiredService<ILoggerFactory>();
 
+                var logger = loggerFactory.CreateLogger("KernelDI");
+
                 IKernelBuilder kernelBuilder = Kernel.CreateBuilder();
                 kernelBuilder.Services.AddSingleton(loggerFactory);
                 kernelBuilder.Plugins.AddFromType<Calendar>();
 
                 var endpoint = b.Configuration[Constants.Configuration.VariableNames.AzureOpenAIEndpoint];
+                logger.LogDebug("AzureOpenAIEndpoint: {AzureOpenAIEndpoint}", endpoint);
                 if (endpoint is not null)
                 {
                     if (b.Configuration["AzureOpenAIKey"] is not null)
                     {
+                        logger.LogDebug("Using AzureOpenAIKey");
                         kernelBuilder.AddAzureOpenAIChatCompletion(
                             b.Configuration[Constants.Configuration.VariableNames.AzureOpenAIModelDeployment]!,
                             endpoint,
@@ -82,6 +86,7 @@ public static class HostExtensions
                     }
                     else
                     {
+                        logger.LogDebug("Using Identity");
                         kernelBuilder.AddAzureOpenAIChatCompletion(
                             b.Configuration[Constants.Configuration.VariableNames.AzureOpenAIModelDeployment]!,
                             endpoint,
@@ -91,6 +96,7 @@ public static class HostExtensions
                 }
 
                 endpoint = b.Configuration["OpenAIEndpoint"];
+                logger.LogDebug("OpenAIEndpoint: {OpenAIEndpoint}", endpoint);
                 if (endpoint is not null)
                 {
 #pragma warning disable SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
