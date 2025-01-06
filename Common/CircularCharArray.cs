@@ -1,5 +1,4 @@
-﻿namespace TBAStatReader;
-
+﻿namespace Common;
 public class CircularCharArray(params char[] content)
 {
     public static CircularCharArray ProgressSpinner => new('|', '/', '-', '\\');

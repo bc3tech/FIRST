@@ -5,6 +5,7 @@ using System.Text;
 
 using Microsoft.Extensions.Logging;
 
+[SuppressMessage("Usage", "CA2254:Template should be a static expression", Justification = "Helper methods")]
 public class LogTraceTextWriter(ILogger log) : TextWriter
 {
     public override Encoding Encoding => Encoding.Default;

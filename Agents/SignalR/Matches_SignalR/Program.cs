@@ -1,6 +1,7 @@
 ﻿namespace Matches_SignalR;
-
 using Common.Extensions;
+
+using global::Agent.Core.Extensions;
 
 using Microsoft.Extensions.Hosting;
 

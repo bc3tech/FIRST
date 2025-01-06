@@ -1,6 +1,6 @@
 ﻿namespace Teams_SignalR;
 
-using Common;
+using global::Agent.Core;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;

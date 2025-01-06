@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Common;
 using Common.Extensions;
 
+using global::Agent.Core;
+
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -37,8 +39,8 @@ internal class Agent(IConfiguration configuration, ILoggerFactory loggerFactory,
     {
         using IDisposable scope = _log.CreateMethodScope();
 
-        bool first = true;
-        await foreach (var s in _kernel.InvokePromptStreamingAsync(prompt, new(_promptSettings)))
+        var first = true;
+        await foreach (StreamingKernelContent s in _kernel.InvokePromptStreamingAsync(prompt, new(_promptSettings)))
         {
             if (first)
             {

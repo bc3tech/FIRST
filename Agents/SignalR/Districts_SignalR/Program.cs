@@ -1,7 +1,8 @@
 ﻿namespace Districts_SignalR;
 using Common.Extensions;
 
-using Microsoft.Azure.SignalR;
+using global::Agent.Core.Extensions;
+
 using Microsoft.Extensions.Hosting;
 
 using TBAAPI.V3Client.Api;

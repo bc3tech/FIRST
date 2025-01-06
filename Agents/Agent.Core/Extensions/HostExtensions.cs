@@ -1,8 +1,12 @@
-﻿namespace Common.Extensions;
+﻿namespace Agent.Core.Extensions;
+
+using Agent.Core;
 
 using Assistants;
 
 using Azure.Identity;
+
+using Common;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -65,7 +69,7 @@ public static class HostExtensions
                 IHttpClientFactory httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
                 ILoggerFactory loggerFactory = sp.GetRequiredService<ILoggerFactory>();
 
-                var logger = loggerFactory.CreateLogger("KernelDI");
+                ILogger logger = loggerFactory.CreateLogger("KernelDI");
 
                 IKernelBuilder kernelBuilder = Kernel.CreateBuilder();
                 kernelBuilder.Services.AddSingleton(loggerFactory);
@@ -115,7 +119,7 @@ public static class HostExtensions
         return b;
     }
 
-    private static void ValidateConfigForSemanticKernel(IConfiguration config)
+    private static void ValidateConfigForSemanticKernel(ConfigurationManager config)
     {
         var azureOpenAiEndpointValue = config[Constants.Configuration.VariableNames.AzureOpenAIEndpoint];
 
@@ -144,7 +148,7 @@ public static class HostExtensions
         }
     }
 
-    public static HostApplicationBuilder AddSemanticKernel<TApi>(this HostApplicationBuilder b, Action<IServiceProvider, OpenAIPromptExecutionSettings>? configurePromptSettings = default, Action<IServiceProvider, IKernelBuilder>? configureKernel = default) => AddSemanticKernel(b, configurePromptSettings,
+    public static HostApplicationBuilder AddSemanticKernel<TApi>(this HostApplicationBuilder b, Action<IServiceProvider, OpenAIPromptExecutionSettings>? configurePromptSettings = default, Action<IServiceProvider, IKernelBuilder>? configureKernel = default) => b.AddSemanticKernel(configurePromptSettings,
         (sp, kb) =>
         {
             var expert = (TApi)Activator.CreateInstance(typeof(TApi), new Configuration(new Dictionary<string, string>(),

@@ -1,4 +1,4 @@
-﻿namespace Common;
+﻿namespace SignalRHub;
 
 using Microsoft.AspNetCore.SignalR;
 

@@ -1,4 +1,4 @@
-﻿namespace SignalRASPHub;
+﻿namespace SignalRHub;
 
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;

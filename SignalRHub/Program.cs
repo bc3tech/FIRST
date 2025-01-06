@@ -1,8 +1,6 @@
-using Common;
-
 using Microsoft.AspNetCore.SignalR;
 
-using SignalRASPHub;
+using SignalRHub;
 
 internal class Program
 {

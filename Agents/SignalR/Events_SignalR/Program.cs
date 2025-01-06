@@ -1,6 +1,8 @@
 ﻿namespace Events_SignalR;
 using Common.Extensions;
 
+using global::Agent.Core.Extensions;
+
 using Microsoft.Azure.SignalR;
 using Microsoft.Extensions.Hosting;
 

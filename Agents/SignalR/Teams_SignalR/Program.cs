@@ -1,6 +1,8 @@
 ﻿namespace Teams_SignalR;
 using Common.Extensions;
 
+using global::Agent.Core.Extensions;
+
 using Microsoft.Extensions.Hosting;
 
 using TBAAPI.V3Client.Api;
