@@ -19,8 +19,6 @@ public partial class TeamApi
 {
     private ILogger? Log { get; }
 
-    private static readonly JsonDocument EmptyJsonDocument = JsonDocument.Parse("[]");
-
     public TeamApi(Configuration config, ILogger logger) : this(config) => this.Log = logger;
 
     /// <summary>
