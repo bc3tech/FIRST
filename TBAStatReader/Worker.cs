@@ -21,8 +21,8 @@ internal class Worker(ILoggerFactory loggerFactory, HubConnection signalr) : IHo
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        signalr.On<string>(Constants.SignalR.Functions.ExpertJoined, expertName => _log.LogDebug("{expertName} is now available.", expertName));
-        signalr.On<string>(Constants.SignalR.Functions.ExpertLeft, expertName => _log.LogDebug("{expertName} has disconnected.", expertName));
+        signalr.On<string>(Constants.SignalR.Functions.ExpertJoined, expertName => _log.ExpertNameIsNowAvailable(expertName));
+        signalr.On<string>(Constants.SignalR.Functions.ExpertLeft, expertName => _log.ExpertNameHasDisconnected(expertName));
         signalr.On<string, string>(Constants.SignalR.Functions.PostStatus, (user, message) =>
         {
             Console.CursorLeft = 0;
@@ -31,7 +31,7 @@ internal class Worker(ILoggerFactory loggerFactory, HubConnection signalr) : IHo
             Console.ResetColor();
         });
 
-        _log.LogInformation("Connecting to server...");
+        _log.ConnectingToServer();
 
         await signalr.StartAsync(cancellationToken);
 
@@ -111,7 +111,7 @@ internal class Worker(ILoggerFactory loggerFactory, HubConnection signalr) : IHo
 
             Console.WriteLine();
 
-            _log.LogInformation("Time to answer: {tta}", timer.Elapsed);
+            _log.TimeToAnswerTta(timer.Elapsed);
         } while (!cancellationToken.IsCancellationRequested);
     }
 
