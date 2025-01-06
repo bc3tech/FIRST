@@ -4,5 +4,5 @@
 /// </summary>
 public sealed record ConnectionInfo(Uri Url, string? AccessToken)
 {
-    public Task<string?> GetAccessToken() => Task.FromResult(this.AccessToken);
+    public Task<string?> GetAccessTokenAsync() => Task.FromResult(this.AccessToken);
 }

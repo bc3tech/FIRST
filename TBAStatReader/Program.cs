@@ -81,7 +81,7 @@ internal partial class Program
         ArgumentNullException.ThrowIfNull(connInfo);
 
         HubConnection hubConn = new HubConnectionBuilder()
-            .WithUrl(connInfo.Url, o => o.AccessTokenProvider = connInfo.GetAccessToken)
+            .WithUrl(connInfo.Url, o => o.AccessTokenProvider = connInfo.GetAccessTokenAsync)
             .ConfigureLogging(lb => lb
                 .AddConfiguration(b.Configuration.GetSection("Logging"))
                 .AddSimpleConsole(o =>

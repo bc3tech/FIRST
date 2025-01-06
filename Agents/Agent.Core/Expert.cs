@@ -133,7 +133,7 @@ public abstract class Expert : IHostedService
         ArgumentNullException.ThrowIfNull(connInfo);
 
         IHubConnectionBuilder builder = new HubConnectionBuilder()
-            .WithUrl(connInfo.Url, o => o.AccessTokenProvider = connInfo.GetAccessToken)
+            .WithUrl(connInfo.Url, o => o.AccessTokenProvider = connInfo.GetAccessTokenAsync)
             .ConfigureLogging(lb =>
             {
                 lb.AddConfiguration(_config.GetSection("Logging"));
