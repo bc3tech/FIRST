@@ -1,11 +1,5 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
   <ItemGroup>
     <Compile Include="..\tba-client\src\TBAAPI.V3Client\Client\OpenAPIDateConverter.cs" Link="Json\OpenAPIDateConverter.cs" />
     <Compile Include="..\tba-client\src\TBAAPI.V3Client\Client\OpenAPIEnumConverter.cs" Link="Json\OpenAPIEnumConverter.cs" />

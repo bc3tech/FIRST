@@ -1,9 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
-		<TargetFramework>net8.0</TargetFramework>
-		<ImplicitUsings>enable</ImplicitUsings>
-		<Nullable>enable</Nullable>
 		<UserSecretsId>5631e549-948c-4903-be18-a06152c3600c</UserSecretsId>
 	</PropertyGroup>
 	<ItemGroup>
@@ -36,10 +33,6 @@
 		<PackageReference Include="Azure.Identity" />
 		<PackageReference Include="Microsoft.Azure.SignalR.Management" />
 		<PackageReference Include="Microsoft.Extensions.Http" />
-		<PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers">
-			<PrivateAssets>all</PrivateAssets>
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
 	</ItemGroup>
 	<ItemGroup>
 		<None Update="Dockerfile">
