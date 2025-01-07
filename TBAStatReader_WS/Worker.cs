@@ -14,8 +14,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-using TBAStatReader_gRPC;
-
 internal class Worker(ILoggerFactory loggerFactory, IConfiguration configuration) : IHostedService
 {
     private readonly ILogger _log = loggerFactory.CreateLogger<Worker>();
@@ -63,26 +61,45 @@ internal class Worker(ILoggerFactory loggerFactory, IConfiguration configuration
             WaitingForResponse = true;
 
             // Send the question to the WebSocket server
-            var request = new { action = "GetAnswer", prompt = question };
+            var request = new { action = "StreamAnswer", prompt = question };
             var requestJson = JsonSerializer.Serialize(request);
             var requestBytes = Encoding.UTF8.GetBytes(requestJson);
             await client.SendAsync(new ArraySegment<byte>(requestBytes), WebSocketMessageType.Text, true, cancellationToken);
 
-            // Receive the response from the WebSocket server
-            var buffer = new byte[1024 * 4];
-            var result = await client.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
-
-            if (WaitingForResponse)
+            // Receive and print streaming responses
+            var buffer = new byte[4];
+            while (client.State == WebSocketState.Open)
             {
-                WaitingForResponse = false;
-                await spinnerCancelToken.CancelAsync();
-                Console.CursorLeft = 0;
+                var result = await client.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                if (WaitingForResponse)
+                {
+                    WaitingForResponse = false;
+                    await spinnerCancelToken.CancelAsync();
+                    Console.CursorLeft = 0;
+                }
+
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    await client.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                    Console.WriteLine("WebSocket connection closed.");
+                }
+                else if (result.MessageType == WebSocketMessageType.Text)
+                {
+                    var response = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                    Console.Write(response);
+                }
+                else
+                {
+                    _log.BinaryMessageReceivedFromWebSocketUnhandled();
+                }
+
+                if (result.EndOfMessage)
+                {
+                    break;
+                }
             }
 
-            var responseJson = Encoding.UTF8.GetString(buffer, 0, result.Count);
-            var response = JsonDocument.Parse(responseJson).RootElement.GetProperty("completion").GetString();
-
-            Console.WriteLine(response);
+            Console.WriteLine();
 
             _log.TimeToAnswerTta(timer.Elapsed);
         } while (!cancellationToken.IsCancellationRequested);

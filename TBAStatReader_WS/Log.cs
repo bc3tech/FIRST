@@ -1,4 +1,4 @@
-﻿namespace TBAStatReader_gRPC;
+﻿namespace TBAStatReader_WS;
 
 #pragma warning disable CS8019
 using System;
@@ -20,4 +20,7 @@ static partial class Log
 
     [LoggerMessage(3, LogLevel.Information, "Time to answer: {tta}")]
     internal static partial void TimeToAnswerTta(this ILogger logger, TimeSpan tta);
+
+    [LoggerMessage(4, LogLevel.Warning, "Binary message received from WebSocket, unhandled.")]
+    internal static partial void BinaryMessageReceivedFromWebSocketUnhandled(this ILogger logger);
 }

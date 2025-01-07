@@ -104,7 +104,7 @@ public abstract class Expert : IHostedService
     {
         using IDisposable scope = _log.CreateMethodScope();
 
-        return await GetAnswerInternalAsync(prompt, cancellationToken);
+        return await GetAnswerInternalAsync(prompt, cancellationToken).ConfigureAwait(false);
     }
 
     protected async Task<string> GetAnswerInternalAsync(string prompt, CancellationToken cancellationToken)
@@ -131,6 +131,29 @@ public abstract class Expert : IHostedService
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    private Task StreamAnswerAsync(WebSocket caller, string prompt, CancellationToken cancellationToken)
+    {
+        return ExecuteWithThrottleHandlingAsync(async () =>
+        {
+            string response;
+            try
+            {
+                await foreach (StreamingKernelContent token in _kernel.InvokePromptStreamingAsync(prompt, new(_promptSettings)))
+                {
+                    await caller.SendAsync(token.ToByteArray(), WebSocketMessageType.Text, false, cancellationToken).ConfigureAwait(false);
+                }
+
+                await caller.SendAsync(Encoding.UTF8.GetBytes(string.Empty), WebSocketMessageType.Text, true, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _log.ErrorHandlingPromptPrompt(ex, prompt);
+
+                response = JsonSerializer.Serialize(ex.Message);
+            }
+        }, cancellationToken);
+    }
+
     protected virtual async Task<string> ProcessMessageAsync(WebSocket caller, string message, CancellationToken cancellationToken)
     {
         JsonElement jsonObject = JsonDocument.Parse(message).RootElement;
@@ -140,10 +163,14 @@ public abstract class Expert : IHostedService
         {
             case "GetAnswer":
                 var prompt = Throws.IfNullOrWhiteSpace(jsonObject.GetProperty("prompt").GetString());
-                var completion = await GetAnswerAsync(prompt, cancellationToken);
+                var completion = await GetAnswerAsync(prompt, cancellationToken).ConfigureAwait(false);
                 return JsonSerializer.Serialize(new { completion });
 
             // Add more cases for other actions
+            case "StreamAnswer":
+                prompt = Throws.IfNullOrWhiteSpace(jsonObject.GetProperty("prompt").GetString());
+                await StreamAnswerAsync(caller, prompt, cancellationToken).ConfigureAwait(false);
+                return string.Empty;
 
             default:
                 return JsonSerializer.Serialize(new { error = "Unknown action" });
@@ -236,19 +263,19 @@ public abstract class Expert : IHostedService
     public async Task HandleWebSocketAsync(WebSocket webSocket, CancellationToken cancellationToken)
     {
         var buffer = new byte[1024 * 4];
-        WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+        WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None).ConfigureAwait(false);
 
         while (!result.CloseStatus.HasValue)
         {
             var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-            var response = await ProcessMessageAsync(webSocket, message, cancellationToken);
+            var response = await ProcessMessageAsync(webSocket, message, cancellationToken).ConfigureAwait(false);
 
             var responseBytes = Encoding.UTF8.GetBytes(response);
-            await webSocket.SendAsync(new ArraySegment<byte>(responseBytes), result.MessageType, result.EndOfMessage, CancellationToken.None);
+            await webSocket.SendAsync(new ArraySegment<byte>(responseBytes), result.MessageType, result.EndOfMessage, CancellationToken.None).ConfigureAwait(false);
 
-            result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+            result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None).ConfigureAwait(false);
         }
 
-        await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
+        await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None).ConfigureAwait(false);
     }
 }
