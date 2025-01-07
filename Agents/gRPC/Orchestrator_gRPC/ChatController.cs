@@ -13,10 +13,10 @@ public class ChatController(OrchestratorExpert orchestrator) : ControllerBase
     [HttpPost("GetCompletion")]
     public async Task<IActionResult> GetCompletionAsync(CancellationToken cancellationToken)
     {
-        var req = this.HttpContext.Request;
-        var body = await req.ReadFromJsonAsync<JsonObject>();
+        HttpRequest req = this.HttpContext.Request;
+        JsonObject? body = await req.ReadFromJsonAsync<JsonObject>();
         var prompt = Throws.IfNullOrWhiteSpace(body?["prompt"]?.ToString());
-        var r = await orchestrator.GetAnswer(prompt, cancellationToken);
+        Expert_gRPC.AnswerResponse r = await orchestrator.GetAnswer(prompt, cancellationToken);
         return Ok(r.Completion);
     }
 }

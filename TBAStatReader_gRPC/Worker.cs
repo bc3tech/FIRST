@@ -55,7 +55,7 @@ internal class Worker(ILoggerFactory loggerFactory, Orchestrator_gRPC.Orchestrat
 
             WaitingForResponse = true;
             AsyncServerStreamingCall<Expert_gRPC.StreamResponse> completionCall = signalr.GetAnswerStream(new Expert_gRPC.AnswerRequest { Prompt = question }, cancellationToken: cancellationToken);
-            await foreach (var r in completionCall.ResponseStream.ReadAllAsync())
+            await foreach (Expert_gRPC.StreamResponse? r in completionCall.ResponseStream.ReadAllAsync())
             {
                 if (WaitingForResponse)
                 {

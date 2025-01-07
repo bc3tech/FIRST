@@ -26,7 +26,7 @@ public class OrchestratorExpert(IConfiguration configuration, ILoggerFactory log
         _experts.AddOrUpdate(request.Name, (_, addr) => new Agent.AgentClient(addr), (_, _, addr) => new Agent.AgentClient(addr), GrpcChannel.ForAddress(request.CallbackAddress));
 
         _kernel.ImportPluginFromFunctions(request.Name, [_kernel.CreateFunctionFromMethod(async (string prompt) => {
-            var r = await _experts[request.Name].GetAnswerAsync(new Expert_gRPC.AnswerRequest{ Prompt=prompt });
+            Expert_gRPC.AnswerResponse r = await _experts[request.Name].GetAnswerAsync(new Expert_gRPC.AnswerRequest{ Prompt=prompt });
             return r.Completion;
         },
             request.Name, request.Description,
