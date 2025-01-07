@@ -18,7 +18,6 @@ using Grpc.Net.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Identity.Client;
 using Microsoft.SemanticKernel;
 
 using Orchestrator_gRPC;

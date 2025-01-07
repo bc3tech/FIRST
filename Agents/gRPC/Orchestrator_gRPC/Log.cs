@@ -2,8 +2,9 @@
 namespace Orchestrator_gRPC
 {
 #pragma warning disable CS8019
-    using Microsoft.Extensions.Logging;
     using System;
+
+    using Microsoft.Extensions.Logging;
 #pragma warning restore CS8019
 
     static partial class Log

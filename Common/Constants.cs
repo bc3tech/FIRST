@@ -1,7 +1,5 @@
 ﻿namespace Common;
 
-using System.ComponentModel.DataAnnotations;
-
 using Microsoft.Extensions.Configuration;
 
 public static class Constants

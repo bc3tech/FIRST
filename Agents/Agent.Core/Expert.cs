@@ -1,13 +1,12 @@
 ﻿namespace Agent.Core;
 
-using Common;
-
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Common;
 using Common.Extensions;
 
 using Microsoft.AspNetCore.SignalR.Client;

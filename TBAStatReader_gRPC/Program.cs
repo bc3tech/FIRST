@@ -1,10 +1,7 @@
 ﻿namespace TBAStatReader_gRPC;
 
-using System.Net.Http.Json;
-
 using Common;
 
-using Grpc.Core;
 using Grpc.Net.Client;
 
 using Microsoft.Extensions.Configuration;
