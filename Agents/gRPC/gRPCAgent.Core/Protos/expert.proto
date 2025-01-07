@@ -6,6 +6,7 @@ package expert;
 
 service Expert {
 	rpc GetAnswer (AnswerRequest) returns (AnswerResponse);
+    rpc GetAnswerStream(AnswerRequest) returns (stream StreamResponse);
 }
 
 message AnswerRequest {
@@ -14,4 +15,8 @@ message AnswerRequest {
 
 message AnswerResponse {
 	string completion = 1;
-}	
+}
+
+message StreamResponse {
+	string token = 1;
+}

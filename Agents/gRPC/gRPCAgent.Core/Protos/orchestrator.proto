@@ -11,6 +11,7 @@ package orchestrator;
 service Orchestrator {
     // Include the expert GetAnswer RPC method
     rpc GetAnswer (expert.AnswerRequest) returns (expert.AnswerResponse);
+    rpc GetAnswerStream(expert.AnswerRequest) returns (stream expert.StreamResponse);
 
 	// Processes a message from an agent
 	rpc Message (MessageRequest) returns (google.protobuf.Empty);

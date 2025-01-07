@@ -29,4 +29,6 @@ internal class OrchestratorService(OrchestratorExpert _expert, ILogger<Orchestra
     }
 
     public override Task<AnswerResponse> GetAnswer(AnswerRequest request, ServerCallContext context) => _expert.GetAnswer(request.Prompt, context.CancellationToken);
+
+    public override Task GetAnswerStream(AnswerRequest request, IServerStreamWriter<StreamResponse> responseStream, ServerCallContext context) => _expert.GetAnswerStream(request, responseStream, context);
 }

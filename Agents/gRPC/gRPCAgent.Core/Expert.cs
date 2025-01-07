@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using Common;
 using Common.Extensions;
 
+using Expert_gRPC;
+
 using Google.Protobuf.WellKnownTypes;
 
 using Grpc.Core;
@@ -16,6 +18,7 @@ using Grpc.Net.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Identity.Client;
 using Microsoft.SemanticKernel;
 
 using Orchestrator_gRPC;
@@ -128,6 +131,28 @@ public abstract class Expert : Agent_gRPC.Agent.AgentBase, IHostedService
         }, cancellationToken);
     }
 
+    public override Task GetAnswerStream(AnswerRequest request, IServerStreamWriter<StreamResponse> responseStream, ServerCallContext context)
+    {
+        var prompt = request.Prompt;
+        return ExecuteWithThrottleHandlingAsync(async () =>
+        {
+            string response;
+            try
+            {
+                await foreach (StreamingKernelContent token in _kernel.InvokePromptStreamingAsync(prompt, new(_promptSettings)))
+                {
+                    await responseStream.WriteAsync(new() { Token = token.ToString() });
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.ErrorHandlingPromptPrompt(ex, prompt);
+
+                response = JsonSerializer.Serialize(ex.Message);
+            }
+        }, context.CancellationToken);
+    }
+
     protected async Task<T> ExecuteWithThrottleHandlingAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken, int maxRetries = 10)
     {
         Exception? lastException = null;
@@ -138,6 +163,45 @@ public abstract class Expert : Agent_gRPC.Agent.AgentBase, IHostedService
             try
             {
                 return await operation();
+            }
+            catch (HttpOperationException ex)
+            {
+                lastException = ex;
+                if (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests && ex.InnerException is Azure.RequestFailedException rex)
+                {
+                    Azure.Response? resp = rex.GetRawResponse();
+                    if (resp?.Headers.TryGetValue("Retry-After", out var waitTime) is true)
+                    {
+                        _log.ResponsesThrottledWaitingRetryAfterSecondsToTryAgain(waitTime);
+                        await Task.Delay(TimeSpan.FromSeconds(int.Parse(waitTime)), cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
+                else
+                {
+                    throw;
+                }
+            }
+        }
+
+        _log.MaxRetriesExceeded(lastException);
+        throw lastException!;
+    }
+
+    protected async Task ExecuteWithThrottleHandlingAsync(Func<Task> operation, CancellationToken cancellationToken, int maxRetries = 10)
+    {
+        Exception? lastException = null;
+        for (var i = 0; i < maxRetries; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                await operation();
+                return;
             }
             catch (HttpOperationException ex)
             {

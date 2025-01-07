@@ -29,6 +29,4 @@ if (app.Environment.IsDevelopment())
     app.MapGrpcReflectionService();
 }
 
-app.UseWebSockets();
-
 app.Run();

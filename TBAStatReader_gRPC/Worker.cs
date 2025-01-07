@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 
 using Common;
 
+using Grpc.Core;
+
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -52,18 +54,20 @@ internal class Worker(ILoggerFactory loggerFactory, Orchestrator_gRPC.Orchestrat
             var t = Task.Run(() => runSpinnerAsync(combinedCancelToken.Token), combinedCancelToken.Token);
 
             WaitingForResponse = true;
-            var answer = await signalr.GetAnswerAsync(new Expert_gRPC.AnswerRequest { Prompt = question }, cancellationToken: cancellationToken);
-
-            if (cancellationToken.IsCancellationRequested)
+            AsyncServerStreamingCall<Expert_gRPC.StreamResponse> completionCall = signalr.GetAnswerStream(new Expert_gRPC.AnswerRequest { Prompt = question }, cancellationToken: cancellationToken);
+            await foreach (var r in completionCall.ResponseStream.ReadAllAsync())
             {
-                continue;
+                if (WaitingForResponse)
+                {
+                    WaitingForResponse = false;
+                    await spinnerCancelToken.CancelAsync();
+                    Console.CursorLeft = 0;
+                }
+
+                Console.Write(r.Token);
             }
 
-            WaitingForResponse = false;
-            await spinnerCancelToken.CancelAsync();
-            Console.CursorLeft = 0;
-
-            Console.WriteLine(answer.Completion);
+            Console.WriteLine();
 
             _log.TimeToAnswerTta(timer.Elapsed);
         } while (!cancellationToken.IsCancellationRequested);
