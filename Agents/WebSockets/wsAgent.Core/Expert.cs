@@ -39,6 +39,16 @@ public abstract class Expert : IHostedService
 
         this.Name = Throws.IfNullOrWhiteSpace(appConfig[Constants.Configuration.Paths.AgentName]);
         this.Description = appConfig[Constants.Configuration.Paths.AgentDescription];
+        var securePort = appConfig.GetRequiredSection("Kestrel").GetRequiredSection("Endpoints").GetSection("HTTPs")["Url"];
+        if (securePort is not null)
+        {
+            this.CallbackPort = new Uri(securePort).Port;
+            this.Secured = true;
+        }
+        else
+        {
+            this.CallbackPort = new Uri(Throws.IfNullOrWhiteSpace(appConfig.GetRequiredSection("Kestrel").GetRequiredSection("Endpoints").GetRequiredSection("HTTP")["Url"])).Port;
+        }
 
         _log = Throws.IfNull(loggerFactory).CreateLogger(this.Name);
 
@@ -50,6 +60,8 @@ public abstract class Expert : IHostedService
 
     public string Name { get; protected init; }
     public string? Description { get; protected init; }
+    public int CallbackPort { get; protected init; }
+    public bool Secured { get; protected init; }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -83,7 +95,7 @@ public abstract class Expert : IHostedService
         var message = JsonSerializer.Serialize(new
         {
             action = "Introduce",
-            detail = new { this.Name, this.Description }
+            detail = new { this.Name, this.Description, this.CallbackPort, this.Secured }
         });
         await SendMessageAsync(message, cancellationToken).ConfigureAwait(false);
     }
@@ -119,9 +131,9 @@ public abstract class Expert : IHostedService
         }, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<string> ProcessMessageAsync(string message, CancellationToken cancellationToken)
+    protected virtual async Task<string> ProcessMessageAsync(WebSocket caller, string message, CancellationToken cancellationToken)
     {
-        var jsonObject = JsonDocument.Parse(message).RootElement;
+        JsonElement jsonObject = JsonDocument.Parse(message).RootElement;
         var action = jsonObject.GetProperty("action").GetString();
 
         switch (action)
@@ -229,7 +241,7 @@ public abstract class Expert : IHostedService
         while (!result.CloseStatus.HasValue)
         {
             var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-            var response = await ProcessMessageAsync(message, cancellationToken);
+            var response = await ProcessMessageAsync(webSocket, message, cancellationToken);
 
             var responseBytes = Encoding.UTF8.GetBytes(response);
             await webSocket.SendAsync(new ArraySegment<byte>(responseBytes), result.MessageType, result.EndOfMessage, CancellationToken.None);

@@ -3,9 +3,10 @@ using Orchestrator_WS;
 using wsAgent.Core.Extensions;
 
 IHostApplicationBuilder builder = WebApplication.CreateBuilder(args)
-    .AddExpert<OrchestratorExpert>()
+    .AddExpert<Orchestrator>()
     .AddSemanticKernel();
-builder.Services.AddSingleton<OrchestratorWebSocketService>();
+
+builder.Services.AddHttpContextAccessor();
 
 WebApplication app = ((WebApplicationBuilder)builder).Build();
 
@@ -17,9 +18,9 @@ app.Map("/ws/orchestrator", async context =>
 {
     if (context.WebSockets.IsWebSocketRequest)
     {
-        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-        var orchestratorService = context.RequestServices.GetRequiredService<OrchestratorWebSocketService>();
-        await orchestratorService.HandleWebSocketAsync(webSocket, context);
+        System.Net.WebSockets.WebSocket webSocket = await context.WebSockets.AcceptWebSocketAsync();
+        Orchestrator orchestratorService = context.RequestServices.GetRequiredService<Orchestrator>();
+        await orchestratorService.HandleWebSocketAsync(webSocket, context.RequestAborted);
     }
     else
     {

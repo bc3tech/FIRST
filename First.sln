@@ -63,6 +63,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Teams_WS", "Agents\WebSocke
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "WS", "WS", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TBAStatReader_WS", "TBAStatReader_WS\TBAStatReader_WS.csproj", "{9C5003BE-732F-43DA-AE3C-D6155D2436C6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -145,6 +147,10 @@ Global
 		{4A128828-32BF-439D-A10A-01F71BC9A6E0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4A128828-32BF-439D-A10A-01F71BC9A6E0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4A128828-32BF-439D-A10A-01F71BC9A6E0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9C5003BE-732F-43DA-AE3C-D6155D2436C6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9C5003BE-732F-43DA-AE3C-D6155D2436C6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9C5003BE-732F-43DA-AE3C-D6155D2436C6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9C5003BE-732F-43DA-AE3C-D6155D2436C6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
