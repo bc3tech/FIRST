@@ -1,4 +1,4 @@
-﻿namespace Teams_SignalR;
+﻿namespace TeamsSignalR;
 using Common.Extensions;
 
 using global::Agent.Core.Extensions;
