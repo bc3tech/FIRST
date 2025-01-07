@@ -1,0 +1,19 @@
+[
+  {
+    "Name": "gRPC",
+    "Projects": [
+      {
+        "Path": "Agents\\gRPC\\Orchestrator_gRPC\\Orchestrator_gRPC.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "Agents\\gRPC\\Teams_gRPC\\Teams_gRPC.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "TBAStatReader_gRPC\\TBAStatReader_gRPC.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]
