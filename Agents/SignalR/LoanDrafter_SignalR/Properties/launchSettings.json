@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "LoanDrafter_SignalR": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
