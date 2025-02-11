@@ -35,7 +35,7 @@ internal class Worker(ILoggerFactory loggerFactory, HubConnection signalr) : IHo
 
         await signalr.StartAsync(cancellationToken);
 
-        Console.WriteLine("Welcome to the TBA Chat bot! What would you like to know about FIRST competitions, past or present?");
+        Console.WriteLine("Welcome to Global Bank's loan department! How can I help you?");
 
         static async Task runSpinnerAsync(CancellationToken ct)
         {

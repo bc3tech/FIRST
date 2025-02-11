@@ -44,7 +44,12 @@ public abstract class Expert : IHostedService
         this.Description = appConfig[Constants.Configuration.Paths.AgentDescription];
 
         _log = Throws.IfNull(loggerFactory).CreateLogger(this.Name);
+
+        _kernelLazy = new(() => SKHelpers.CreateAgenticKernel(_config, httpClientFactory, loggerFactory));
     }
+
+    protected readonly Lazy<Kernel> _kernelLazy;
+    protected Kernel MyKernel => _kernelLazy.Value;
 
     public string Name { get; protected init; }
     public string? Description { get; protected init; }

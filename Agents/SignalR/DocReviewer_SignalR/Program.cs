@@ -12,14 +12,10 @@ internal partial class Program
         CancellationTokenSource cts = ProgramHelpers.CreateCancellationTokenSource();
 
         HostApplicationBuilder b = Host.CreateApplicationBuilder(args);
+        b.Services.AddSingleton<Api>();
         b.AddExpert<Agent>();
-        b.AddSemanticKernel();
+        b.AddSemanticKernel(configureKernelBuilder: (sp, kb) => kb.Plugins.AddFromObject(sp.GetRequiredService<Api>()));
 
-        var h = b.Build();
-        var sp = h.Services;
-        var kernel = sp.GetRequiredService<Kernel>();
-        kernel.Plugins.AddFromObject(new Api(kernel, sp.GetRequiredService<PromptExecutionSettings>()));
-
-        await h.RunAsync(cts.Token).ConfigureAwait(false);
+        await b.Build().RunAsync(cts.Token).ConfigureAwait(false);
     }
 }

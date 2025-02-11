@@ -1,5 +1,7 @@
 ﻿namespace Common.Extensions;
 
+using Agent.Core;
+
 using Assistants;
 
 using Azure.Identity;
@@ -46,64 +48,16 @@ public static class HostExtensions
         ValidateConfigForSemanticKernel(b.Configuration);
 
         b.Services
-            .AddSingleton<PromptExecutionSettings>(sp =>
-            {
-                var settings = new OpenAIPromptExecutionSettings
-                {
-                    ChatSystemPrompt = Throws.IfNullOrWhiteSpace(b.Configuration[Constants.Configuration.VariableNames.SystemPrompt], message: "Missing SystemPrompt environment variable"),
-                    Temperature = 0.1,
-                    ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions,
-                    User = Environment.MachineName
-                };
-
-                configurePromptSettings?.Invoke(sp, settings);
-
-                return settings;
-            })
+            .AddSingleton(sp => SKHelpers.CreateAgenticPromptSettings(b.Configuration, s => configurePromptSettings?.Invoke(sp, s)))
             .AddSingleton(sp =>
             {
                 IHttpClientFactory httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
                 ILoggerFactory loggerFactory = sp.GetRequiredService<ILoggerFactory>();
 
-                IKernelBuilder kernelBuilder = Kernel.CreateBuilder();
-                kernelBuilder.Services.AddSingleton(loggerFactory);
-                kernelBuilder.Plugins.AddFromType<Calendar>();
-
-                var endpoint = b.Configuration[Constants.Configuration.VariableNames.AzureOpenAIEndpoint];
-                if (endpoint is not null)
-                {
-                    if (b.Configuration["AzureOpenAIKey"] is not null)
-                    {
-                        kernelBuilder.AddAzureOpenAIChatCompletion(
-                            b.Configuration[Constants.Configuration.VariableNames.AzureOpenAIModelDeployment]!,
-                            endpoint,
-                            b.Configuration["AzureOpenAIKey"]!,
-                            httpClient: httpClientFactory.CreateClient("AzureOpenAi"));
-                    }
-                    else
-                    {
-                        kernelBuilder.AddAzureOpenAIChatCompletion(
-                            b.Configuration[Constants.Configuration.VariableNames.AzureOpenAIModelDeployment]!,
-                            endpoint,
-                            new DefaultAzureCredential(),
-                            httpClient: httpClientFactory.CreateClient("AzureOpenAi"));
-                    }
-                }
-
-                endpoint = b.Configuration["OpenAIEndpoint"];
-                if (endpoint is not null)
-                {
-#pragma warning disable SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-                    kernelBuilder.AddOpenAIChatCompletion(b.Configuration["OpenAIModelId"]!, new Uri(endpoint), b.Configuration["OpenAIKey"] ?? string.Empty);
-#pragma warning restore SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-                }
-
-                configureKernelBuilder?.Invoke(sp, kernelBuilder);
-
-                Kernel kernel = kernelBuilder.Build();
-                configureKernel?.Invoke(sp, kernel);
-
-                return kernel;
+                return SKHelpers.CreateAgenticKernel(b.Configuration, httpClientFactory, loggerFactory,
+                    p => p.AddFromType<Calendar>(),
+                    b => configureKernelBuilder?.Invoke(sp, b),
+                    k => configureKernel?.Invoke(sp, k));
             });
 
         return b;
