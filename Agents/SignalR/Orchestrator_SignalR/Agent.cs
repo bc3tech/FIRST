@@ -1,6 +1,7 @@
 ﻿namespace Orchestrator_SignalR;
 
 using System;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -33,12 +34,25 @@ internal class Agent(IConfiguration configuration, ILoggerFactory loggerFactory,
         await base.AfterSignalRConnectedAsync();
     }
 
+    private readonly StringBuilder _conversation = new();
+
     private async IAsyncEnumerable<string> StreamAnswerAsync(string prompt)
     {
         using IDisposable scope = _log.CreateMethodScope();
 
+        if (string.Equals(prompt, "reset", StringComparison.OrdinalIgnoreCase))
+        {
+            _log.LogDebug("Resetting conversation...");
+            _conversation.Clear();
+            yield return "Conversation reset.\n\n";
+            yield break;
+        }
+
+        _conversation.AppendLine($"User: {prompt}");
+
+        StringBuilder assistant = new();
         bool first = true;
-        await foreach (var s in _kernel.InvokePromptStreamingAsync(prompt, new(_promptSettings)))
+        await foreach (var s in _kernel.InvokePromptStreamingAsync(_conversation.ToString(), new(_promptSettings)))
         {
             if (first)
             {
@@ -46,10 +60,13 @@ internal class Agent(IConfiguration configuration, ILoggerFactory loggerFactory,
                 first = false;
             }
 
-            yield return s.ToString();
+            var token = s.ToString();
+            assistant.Append(token);
+            yield return token;
         }
 
         _log.LogTrace("Streaming complete.");
+        _conversation.AppendLine($"Assistant: {assistant}");
     }
 
     private void AddExpert(string name, string description)

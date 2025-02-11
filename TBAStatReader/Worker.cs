@@ -23,13 +23,16 @@ internal class Worker(ILoggerFactory loggerFactory, HubConnection signalr) : IHo
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         signalr.On<string>(Constants.SignalR.Functions.ExpertJoined, expertName => _log.LogDebug("{expertName} is now available.", expertName));
         signalr.On<string>(Constants.SignalR.Functions.ExpertLeft, expertName => _log.LogDebug("{expertName} has disconnected.", expertName));
-        signalr.On<string, string>(Constants.SignalR.Functions.PostStatus, (user, message) =>
+        //if (_log.IsEnabled(LogLevel.Information))
+        {
+            signalr.On<string, string>(Constants.SignalR.Functions.PostStatus, (user, message) =>
         {
             Console.CursorLeft = 0;
-            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.ForegroundColor = ConsoleColor.DarkGray;
             Console.WriteLine("{0}: {1}", user, message);
             Console.ResetColor();
         });
+        }
 
         _log.LogInformation("Connecting to server...");
 

@@ -32,16 +32,16 @@ internal sealed class Api
     [KernelFunction, Description("Given a collection of FILLED loan documents, will review the documents and return a summary of the review.")]
     [return: Description("A JSON object indicating whether the documents passed review and the reasoning behind the decision.")]
     public async Task<DocumentReview?> ReviewDocumentsAsync(
-        [Description("The loan documents to review. All fields should have a `RESPONSE` tag in them to indicate the user has responded and filled them out.")]
-        LoanDocument[] loanDocuments)
+        [Description("The FILLED loan documents to review. Should contain the name of each document with all fields having a `RESPONSE - ` prefix (to indicate the user has responded and filled them out) along with the user's response")]
+        string loanDocuments)
     {
-        DocumentReview? completion = await _kernel.InvokePromptAsync<DocumentReview>($@"Given the following filled loan documents, please review the documents and provide a summary of the review.
+        var completion = await _kernel.InvokePromptAsync($@"Given the following filled loan documents, please review the documents and provide a summary of the review.
 
 DOCUMENTS
 
-{JsonSerializer.Serialize(loanDocuments)}", _kernelArgs).ConfigureAwait(false);
+{loanDocuments}", _kernelArgs).ConfigureAwait(false);
 
-        return completion;
+        return JsonSerializer.Deserialize<DocumentReview>(completion.ToString());
     }
 #pragma warning restore SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 }
