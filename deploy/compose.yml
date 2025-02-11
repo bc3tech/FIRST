@@ -2,7 +2,7 @@ services:
   hub:
     image: signalrhub
     ports:
-      - "7126:8080"
+      - "7621:8080"
   orchestrator:
     image: orchestrator
     depends_on:
