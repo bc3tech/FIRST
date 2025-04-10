@@ -1,6 +1,14 @@
+using System.Collections.Concurrent;
+
 using AgentsMcpServer;
 
+using ModelContextProtocol.Protocol.Messages;
+using ModelContextProtocol.Protocol.Types;
+using ModelContextProtocol.Server;
+
 using wsAgent.Core.Extensions;
+
+ConcurrentDictionary<string, HashSet<IMcpServer>> subscriptions = new();
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddSemanticKernel();
@@ -8,7 +16,19 @@ builder.Services
     .AddHostedService<Server>()
     .AddHttpClient()
     .AddHttpContextAccessor()
-    .AddMcpServer();
+    .AddMcpServer(o =>
+    {
+        ((o.Capabilities ??= new()).Tools ??= new()).ListChanged = true;
+        o.ServerInfo = new() { Name = "AgentTools", Version = "1.0" };
+    })
+    .WithListToolsHandler((req, _) =>
+    {
+        subscriptions.AddOrUpdate(NotificationMethods.ToolListChangedNotification, [req.Server], (_, s) => [.. s, req.Server]);
+        return Task.FromResult(new ListToolsResult { Tools = [.. Server.ConnectedExperts.Select(i => i.ProtocolTool)] });
+    })
+    .WithCallToolHandler((req, ct) => Server.ConnectedExperts.First(i => i.ProtocolTool.Name == req.Params?.Name).InvokeAsync(req, ct));
+
+builder.Services.AddSingleton(subscriptions);
 
 WebApplication app = builder.Build();
 

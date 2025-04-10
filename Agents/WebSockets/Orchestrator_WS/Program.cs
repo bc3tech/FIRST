@@ -1,3 +1,8 @@
+using Common;
+
+using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol.Transport;
+
 using Orchestrator_WS;
 
 using wsAgent.Core.Extensions;
@@ -7,6 +12,7 @@ IHostApplicationBuilder builder = WebApplication.CreateBuilder(args)
     .AddSemanticKernel();
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<IClientTransport>(sp => new SseClientTransport(new() { Endpoint = new(builder.Configuration[Constants.Configuration.VariableNames.SignalREndpoint]!) }, sp.GetRequiredService<IHttpClientFactory>().CreateClient("mcpClient"), sp.GetService<ILoggerFactory>()));
 
 WebApplication app = ((WebApplicationBuilder)builder).Build();
 

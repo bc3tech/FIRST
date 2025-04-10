@@ -30,8 +30,8 @@ static partial class Log
     [LoggerMessage(6, LogLevel.Information, "Awaiting question...")]
     internal static partial void AwaitingQuestion(this ILogger logger);
 
-    [LoggerMessage(7, LogLevel.Information, "Saying goodbye to Orchestrator...")]
-    internal static partial void SayingGoodbyeToOrchestrator(this ILogger logger);
+    [LoggerMessage(7, LogLevel.Information, "WebSocket connection to orchestrator closed. Forceful? {ForcefulClosure}")]
+    internal static partial void SayingGoodbyeToOrchestrator(this ILogger logger, bool ForcefulClosure);
 
     [LoggerMessage(8, LogLevel.Debug, "AzureOpenAIEndpoint: {AzureOpenAIEndpoint}")]
     internal static partial void AzureOpenAIEndpointAzureOpenAIEndpoint(this ILogger logger, string? AzureOpenAIEndpoint);

@@ -1,7 +1,7 @@
 ﻿namespace wsAgent.Core;
 
-using System.Diagnostics.CodeAnalysis;
 using System.Net.WebSockets;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -11,6 +11,7 @@ using Common;
 using Common.Extensions;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
@@ -25,21 +26,18 @@ public abstract class Expert : IHostedService
 
     private readonly ClientWebSocket? _webSocket;
 
-    protected Expert(
-        [NotNull] IConfiguration appConfig,
-        [NotNull] ILoggerFactory loggerFactory,
-        [NotNull] IHttpClientFactory httpClientFactory,
-        [NotNull] Kernel sk,
-        [NotNull] PromptExecutionSettings promptSettings)
+    protected Expert(IServiceProvider sp)
     {
-        _config = Throws.IfNull(appConfig);
-        _kernel = Throws.IfNull(sk);
-        _promptSettings = Throws.IfNull(promptSettings);
-        _httpFactory = Throws.IfNull(httpClientFactory);
+        _config = sp.GetRequiredService<IConfiguration>();
+        _kernel = sp.GetRequiredService<Kernel>();
+        _promptSettings = sp.GetRequiredService<PromptExecutionSettings>();
+        _httpFactory = sp.GetRequiredService<IHttpClientFactory>();
 
-        this.Name = Throws.IfNullOrWhiteSpace(appConfig[Constants.Configuration.Paths.AgentName]);
-        this.Description = appConfig[Constants.Configuration.Paths.AgentDescription];
-        var securePort = appConfig.GetRequiredSection("Kestrel").GetRequiredSection("Endpoints").GetSection("HTTPs")["Url"];
+        this.Name = Throws.IfNullOrWhiteSpace(_config[Constants.Configuration.Paths.AgentName]);
+        _log = sp.GetRequiredService<ILoggerFactory>().CreateLogger(this.Name);
+
+        this.Description = _config[Constants.Configuration.Paths.AgentDescription];
+        var securePort = _config.GetRequiredSection("Kestrel").GetRequiredSection("Endpoints").GetSection("HTTPs")["Url"];
         if (securePort is not null)
         {
             this.CallbackPort = new Uri(securePort).Port;
@@ -47,10 +45,8 @@ public abstract class Expert : IHostedService
         }
         else
         {
-            this.CallbackPort = new Uri(Throws.IfNullOrWhiteSpace(appConfig.GetRequiredSection("Kestrel").GetRequiredSection("Endpoints").GetRequiredSection("HTTP")["Url"])).Port;
+            this.CallbackPort = new Uri(Throws.IfNullOrWhiteSpace(_config.GetRequiredSection("Kestrel").GetRequiredSection("Endpoints").GetRequiredSection("HTTP")["Url"])).Port;
         }
-
-        _log = Throws.IfNull(loggerFactory).CreateLogger(this.Name);
 
         if (this.PerformsIntroduction)
         {
@@ -63,7 +59,7 @@ public abstract class Expert : IHostedService
     public int CallbackPort { get; protected init; }
     public bool Secured { get; protected init; }
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public virtual async Task StartAsync(CancellationToken cancellationToken)
     {
         AgentDefinition.OutputRegisteredSkFunctions(_kernel, new LogTraceTextWriter(_log));
 
@@ -79,12 +75,12 @@ public abstract class Expert : IHostedService
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        if (_webSocket != null && _webSocket.State == WebSocketState.Open)
+        if (_webSocket?.State is WebSocketState.Open && !cancellationToken.IsCancellationRequested)
         {
             await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", cancellationToken).ConfigureAwait(false);
         }
 
-        _log.SayingGoodbyeToOrchestrator();
+        _log.SayingGoodbyeToOrchestrator(cancellationToken.IsCancellationRequested);
     }
 
     protected virtual bool PerformsIntroduction { get; } = true;
@@ -173,6 +169,7 @@ public abstract class Expert : IHostedService
                 return string.Empty;
 
             default:
+                _log.LogWarning("Unknown action: {Action}", action);
                 return JsonSerializer.Serialize(new { error = "Unknown action" });
         }
     }
@@ -260,22 +257,40 @@ public abstract class Expert : IHostedService
         throw lastException!;
     }
 
-    public async Task HandleWebSocketAsync(WebSocket webSocket, CancellationToken cancellationToken)
+    public virtual async Task HandleWebSocketAsync(WebSocket webSocket, CancellationToken cancellationToken)
     {
         var buffer = new byte[1024 * 4];
-        WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None).ConfigureAwait(false);
-
-        while (!result.CloseStatus.HasValue)
+        WebSocketReceiveResult? result = null;
+        try
         {
-            var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-            var response = await ProcessMessageAsync(webSocket, message, cancellationToken).ConfigureAwait(false);
+            result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken).ConfigureAwait(false);
 
-            var responseBytes = Encoding.UTF8.GetBytes(response);
-            await webSocket.SendAsync(new ArraySegment<byte>(responseBytes), result.MessageType, result.EndOfMessage, CancellationToken.None).ConfigureAwait(false);
+            while (!cancellationToken.IsCancellationRequested && !result.CloseStatus.HasValue)
+            {
+                var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                var response = await ProcessMessageAsync(webSocket, message, cancellationToken).ConfigureAwait(false);
 
-            result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None).ConfigureAwait(false);
+                var responseBytes = Encoding.UTF8.GetBytes(response);
+                await webSocket.SendAsync(new ArraySegment<byte>(responseBytes), result.MessageType, result.EndOfMessage, cancellationToken).ConfigureAwait(false);
+
+                result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (Exception e) when (e is OperationCanceledException or WebSocketException)
+        {
+            _log.LogDebug(e, "Got exception during websocket receive; assuming \"dirty\" close");
         }
 
-        await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None).ConfigureAwait(false);
+        if (result?.CloseStatus is not null)
+        {
+            try
+            {
+                await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                _log.LogError(e, "Hit exception when trying to close the Websocket connection; disregarding");
+            }
+        }
     }
 }
