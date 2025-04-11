@@ -1,5 +1,6 @@
 ﻿namespace wsAgent.Core;
 
+using System.Diagnostics;
 using System.Net.WebSockets;
 using System.Runtime.Serialization;
 using System.Text;
@@ -15,6 +16,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Connectors.OpenAI;
 
 public abstract class Expert : IHostedService
 {
@@ -23,7 +26,7 @@ public abstract class Expert : IHostedService
     protected readonly Kernel _kernel;
     protected readonly PromptExecutionSettings _promptSettings;
     protected readonly IHttpClientFactory _httpFactory;
-
+    private readonly IChatCompletionService _chatService;
     private readonly ClientWebSocket? _webSocket;
 
     protected Expert(IServiceProvider sp)
@@ -32,6 +35,7 @@ public abstract class Expert : IHostedService
         _kernel = sp.GetRequiredService<Kernel>();
         _promptSettings = sp.GetRequiredService<PromptExecutionSettings>();
         _httpFactory = sp.GetRequiredService<IHttpClientFactory>();
+        _chatService = _kernel.Services.GetRequiredService<IChatCompletionService>();
 
         this.Name = Throws.IfNullOrWhiteSpace(_config[Constants.Configuration.Paths.AgentName]);
         _log = sp.GetRequiredService<ILoggerFactory>().CreateLogger(this.Name);
@@ -96,59 +100,64 @@ public abstract class Expert : IHostedService
         await SendMessageAsync(message, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<string> GetAnswerAsync(string prompt, CancellationToken cancellationToken)
+    public async Task<ChatHistory> GetAnswerAsync(ChatHistory chatHistory, CancellationToken cancellationToken)
     {
         using IDisposable scope = _log.CreateMethodScope();
 
-        return await GetAnswerInternalAsync(prompt, cancellationToken).ConfigureAwait(false);
+        _log.LogTrace("Getting answer for Chat \"{ChatHistory}\"", chatHistory);
+
+        return await GetAnswerInternalAsync(chatHistory, cancellationToken).ConfigureAwait(false);
     }
 
-    protected async Task<string> GetAnswerInternalAsync(string prompt, CancellationToken cancellationToken)
+    protected async Task<ChatHistory> GetAnswerInternalAsync(ChatHistory chatHistory, CancellationToken cancellationToken)
     {
         return await ExecuteWithThrottleHandlingAsync(async () =>
         {
-            string response;
             try
             {
-                FunctionResult promptResult = await _kernel.InvokePromptAsync(prompt, new(_promptSettings)).ConfigureAwait(false);
+                if (!chatHistory.Any(i => i.Role == AuthorRole.System))
+                {
+                    // If there is no system message, add one
+                    chatHistory.Insert(0, new ChatMessageContent(AuthorRole.System, ((OpenAIPromptExecutionSettings)_promptSettings).ChatSystemPrompt));
+                }
 
-                _log.PromptHandledResponsePromptResponse(promptResult);
+                await _chatService.GetChatMessageContentAsync(chatHistory, _promptSettings, _kernel, cancellationToken).ConfigureAwait(false);
 
-                response = promptResult.ToString();
+                _log.PromptHandledResponsePromptResponse(chatHistory.Last());
             }
             catch (Exception ex)
             {
-                _log.ErrorHandlingPromptPrompt(ex, prompt);
+                _log.ErrorHandlingPromptPrompt(ex, chatHistory.Last());
 
-                response = JsonSerializer.Serialize(ex.Message);
+                chatHistory.AddAssistantMessage(ex.Message);
             }
 
-            return response;
+            return chatHistory;
         }, cancellationToken).ConfigureAwait(false);
     }
 
-    private Task StreamAnswerAsync(WebSocket caller, string prompt, CancellationToken cancellationToken)
-    {
-        return ExecuteWithThrottleHandlingAsync(async () =>
-        {
-            string response;
-            try
-            {
-                await foreach (StreamingKernelContent token in _kernel.InvokePromptStreamingAsync(prompt, new(_promptSettings)))
-                {
-                    await caller.SendAsync(token.ToByteArray(), WebSocketMessageType.Text, false, cancellationToken).ConfigureAwait(false);
-                }
+    //private Task StreamAnswerAsync(WebSocket caller, string prompt, CancellationToken cancellationToken)
+    //{
+    //    return ExecuteWithThrottleHandlingAsync(async () =>
+    //    {
+    //        string response;
+    //        try
+    //        {
+    //            await foreach (StreamingKernelContent token in _kernel.InvokePromptStreamingAsync(prompt, new(_promptSettings)))
+    //            {
+    //                await caller.SendAsync(token.ToByteArray(), WebSocketMessageType.Text, false, cancellationToken).ConfigureAwait(false);
+    //            }
 
-                await caller.SendAsync(Encoding.UTF8.GetBytes(string.Empty), WebSocketMessageType.Text, true, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _log.ErrorHandlingPromptPrompt(ex, prompt);
+    //            await caller.SendAsync(Encoding.UTF8.GetBytes(string.Empty), WebSocketMessageType.Text, true, cancellationToken);
+    //        }
+    //        catch (Exception ex)
+    //        {
+    //            _log.ErrorHandlingPromptPrompt(ex, prompt);
 
-                response = JsonSerializer.Serialize(ex.Message);
-            }
-        }, cancellationToken);
-    }
+    //            response = JsonSerializer.Serialize(ex.Message);
+    //        }
+    //    }, cancellationToken);
+    //}
 
     protected virtual async Task<string> ProcessMessageAsync(WebSocket caller, string message, CancellationToken cancellationToken)
     {
@@ -158,15 +167,15 @@ public abstract class Expert : IHostedService
         switch (action)
         {
             case "GetAnswer":
-                var prompt = Throws.IfNullOrWhiteSpace(jsonObject.GetProperty("prompt").GetString());
-                var completion = await GetAnswerAsync(prompt, cancellationToken).ConfigureAwait(false);
+                var chat = Throws.IfNull(jsonObject.GetProperty("prompt").Deserialize<ChatHistory>());
+                var completion = await GetAnswerAsync(chat, cancellationToken).ConfigureAwait(false);
                 return JsonSerializer.Serialize(new { completion });
 
             // Add more cases for other actions
-            case "StreamAnswer":
-                prompt = Throws.IfNullOrWhiteSpace(jsonObject.GetProperty("prompt").GetString());
-                await StreamAnswerAsync(caller, prompt, cancellationToken).ConfigureAwait(false);
-                return string.Empty;
+            //case "StreamAnswer":
+            //    prompt = Throws.IfNullOrWhiteSpace(jsonObject.GetProperty("prompt").GetString());
+            //    await StreamAnswerAsync(caller, prompt, cancellationToken).ConfigureAwait(false);
+            //    return string.Empty;
 
             default:
                 _log.LogWarning("Unknown action: {Action}", action);

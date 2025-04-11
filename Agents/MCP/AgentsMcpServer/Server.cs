@@ -13,10 +13,11 @@ using System.Threading.Tasks;
 using Common;
 
 using Microsoft.Extensions.AI;
-using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
 
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol.Messages;
+using ModelContextProtocol.Protocol.Types;
 using ModelContextProtocol.Server;
 
 using wsAgent.Core;
@@ -65,11 +66,11 @@ internal class Server(IServiceProvider sp) : Expert(sp)
         _expertIPAddresses[_contextAccessor.HttpContext.Connection.RemoteIpAddress] = name;
 
         var description = request.GetProperty("Description").GetString();
-        var mcpTool = McpServerTool.Create(AIFunctionFactory.Create(async (string prompt) =>
+        var mcpTool = McpServerTool.Create(AIFunctionFactory.Create(async (string action, ChatHistory prompt) =>
         {
-            var response = await SendMessageAndGetResponseAsync(name, new { action = "GetAnswer", prompt }, cancellationToken);
+            var response = await SendMessageAndGetResponseAsync(name, new { action, prompt }, cancellationToken);
             return response;
-        }, name, description));
+        }, name, description), new McpServerToolCreateOptions { Destructive = false, Idempotent = true, ReadOnly = true });
 
         var numExperts = ConnectedExperts.Count;
         ConnectedExperts = ConnectedExperts.Add(mcpTool);
@@ -99,7 +100,7 @@ internal class Server(IServiceProvider sp) : Expert(sp)
 
     internal static ImmutableHashSet<McpServerTool> ConnectedExperts { get; private set; } = [];
 
-    private async Task<string> SendMessageAndGetResponseAsync(string agentName, object message, CancellationToken cancellationToken)
+    private async Task<DataContent> SendMessageAndGetResponseAsync(string agentName, object message, CancellationToken cancellationToken)
     {
         if (!_expertConnections.TryGetValue(agentName, out ClientWebSocket? webSocket))
         {
@@ -109,11 +110,24 @@ internal class Server(IServiceProvider sp) : Expert(sp)
         var messageBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
         await webSocket.SendAsync(new ArraySegment<byte>(messageBytes), WebSocketMessageType.Text, true, cancellationToken);
 
-        var buffer = new byte[1024 * 4];
-        WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
-        var response = Encoding.UTF8.GetString(buffer, 0, result.Count);
+        List<byte> fullResponse = [];
 
-        return response;
+        var buffer = new Memory<byte>(new byte[1024 * 4]);
+        do
+        {
+            var result = await webSocket.ReceiveAsync(buffer, cancellationToken);
+            fullResponse.AddRange(buffer.ToArray().Take(result.Count));
+            if (result.EndOfMessage)
+            {
+                break;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+        } while (true);
+
+        var resultStr = Encoding.UTF8.GetString([.. fullResponse], 0, fullResponse.Count);
+
+        return new DataContent(new ReadOnlyMemory<byte>([.. fullResponse]), "application/json");
     }
 
     public async override Task HandleWebSocketAsync(WebSocket webSocket, CancellationToken cancellationToken)

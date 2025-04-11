@@ -2,15 +2,18 @@ namespace Orchestrator_WS;
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
 using Common;
 
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
 
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol.Messages;
@@ -20,7 +23,7 @@ using wsAgent.Core;
 
 internal class Orchestrator(IHttpContextAccessor _contextAccessor, IServiceProvider _services) : Expert(_services)
 {
-    private readonly static ConcurrentDictionary<string, ClientWebSocket> _experts = new();
+    private readonly static ConcurrentDictionary<IPAddress, ChatHistory> _threads = new();
     private IMcpClient? _mcpClient;
 
     protected override bool PerformsIntroduction { get; } = false;
@@ -37,24 +40,6 @@ internal class Orchestrator(IHttpContextAccessor _contextAccessor, IServiceProvi
         await AddMcpToolsToSkAsync(cancellationToken);
     }
 
-    protected override async Task<string> ProcessMessageAsync(WebSocket caller, string message, CancellationToken cancellationToken)
-    {
-        JsonElement jsonObject = JsonDocument.Parse(message).RootElement;
-        var action = jsonObject.GetProperty("action").GetString();
-
-        switch (action)
-        {
-            case "Introduce":
-                await AddAgentAsync(caller, jsonObject.GetProperty("detail"), cancellationToken);
-                return JsonSerializer.Serialize(new { message = "Agent introduced" });
-
-            // Add more cases for other actions
-
-            default:
-                return await base.ProcessMessageAsync(caller, message, cancellationToken);
-        }
-    }
-
     private async Task AddMcpToolsToSkAsync(CancellationToken cancellationToken)
     {
         Debug.Assert(_mcpClient is not null);
@@ -69,9 +54,7 @@ internal class Orchestrator(IHttpContextAccessor _contextAccessor, IServiceProvi
         {
             _kernel.ImportPluginFromFunctions($"MCP_{tool.Name}", [
                 _kernel.CreateFunctionFromMethod(
-                    async (string prompt) => {
-                        var resp = await _mcpClient!.CallToolAsync(tool.Name, new Dictionary<string,object?>() { ["prompt"] = prompt }, cancellationToken: cancellationToken);
-                    },
+                    (string prompt) => SendMessageAndGetResponseAsync(tool.Name, ( "GetAnswer", prompt ), cancellationToken),
                     tool.Name, tool.Description,
                     parameters: [new("prompt") { IsRequired = true, ParameterType = typeof(string) }],
                     returnParameter: new KernelReturnParameterMetadata() { Description = "Prompt response as a JSON object or array to be inferred upon.", ParameterType = typeof(string) })]
@@ -79,47 +62,23 @@ internal class Orchestrator(IHttpContextAccessor _contextAccessor, IServiceProvi
         }
     }
 
-    private async Task AddAgentAsync(WebSocket webSocket, JsonElement request, CancellationToken cancellationToken)
+    private async Task<string> SendMessageAndGetResponseAsync(string agentName, (string action, string data) message, CancellationToken cancellationToken)
     {
-        var name = Throws.IfNullOrWhiteSpace(request.GetProperty("Name").GetString());
-        _log.AddingExpertNameToPanel(name);
-        _log.LogDebug("{0}", request);
+        var originalThread = _threads.GetOrAdd(_contextAccessor.HttpContext!.Connection.RemoteIpAddress!, _ => []);
+        var updatedThread = new ChatHistory(originalThread);
+        updatedThread.AddUserMessage(message.data);
 
-        var agentClient = new ClientWebSocket();
-        UriBuilder b = new UriBuilder(request.GetProperty("Secured").GetBoolean() ? "wss" : "ws",
-            Throws.IfNullOrWhiteSpace(_contextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString()),
-            request.GetProperty("CallbackPort").GetInt16(),
-            "/ws/agent");
-        await agentClient.ConnectAsync(b.Uri, cancellationToken);
+        var toolResponse = await _mcpClient!.CallToolAsync(agentName, new Dictionary<string, object?> { ["action"] = message.action, ["prompt"] = updatedThread });
 
-        _experts.AddOrUpdate(name, agentClient, (_, _) => agentClient);
+        var b64string = JsonSerializer.Deserialize<JsonElement>(toolResponse.Content.Single().Text!).GetProperty("uri").GetString();
+        var json = Encoding.UTF8.GetString(Convert.FromBase64String(b64string[(b64string.IndexOf(',') + 1)..]));
+        var toolCompletion = JsonSerializer.Deserialize<ToolCompletion>(json)!;
+        updatedThread = toolCompletion.Completion;
+        var updated = _threads.TryUpdate(_contextAccessor.HttpContext.Connection.RemoteIpAddress!, updatedThread, originalThread);
+        Debug.Assert(updated);
 
-        var description = request.GetProperty("Description").GetString();
-
-        _kernel.ImportPluginFromFunctions(name, [_kernel.CreateFunctionFromMethod(async (string prompt) => {
-            var response = await SendMessageAndGetResponseAsync(name, new { action = "GetAnswer", prompt }, cancellationToken);
-            return response;
-        },
-            name, description,
-            [new ("prompt") { IsRequired = true, ParameterType = typeof(string) }],
-            new () { Description = "Prompt response as a JSON object or array to be inferred upon.", ParameterType = typeof(string) })]
-        );
+        return updatedThread.Last().ToString();
     }
 
-    private async Task<string> SendMessageAndGetResponseAsync(string agentName, object message, CancellationToken cancellationToken)
-    {
-        if (!_experts.TryGetValue(agentName, out ClientWebSocket? webSocket))
-        {
-            throw new InvalidOperationException($"No WebSocket connection found for agent {agentName}");
-        }
-
-        var messageBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
-        await webSocket.SendAsync(new ArraySegment<byte>(messageBytes), WebSocketMessageType.Text, true, cancellationToken);
-
-        var buffer = new byte[1024 * 4];
-        WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
-        var response = Encoding.UTF8.GetString(buffer, 0, result.Count);
-
-        return response;
-    }
+    record ToolCompletion([property: JsonPropertyName("completion")] ChatHistory Completion);
 }

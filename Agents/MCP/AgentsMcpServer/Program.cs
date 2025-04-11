@@ -1,6 +1,11 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Text;
+using System.Text.Json;
 
 using AgentsMcpServer;
+
+using Microsoft.Extensions.AI;
 
 using ModelContextProtocol.Protocol.Messages;
 using ModelContextProtocol.Protocol.Types;
@@ -26,7 +31,19 @@ builder.Services
         subscriptions.AddOrUpdate(NotificationMethods.ToolListChangedNotification, [req.Server], (_, s) => [.. s, req.Server]);
         return Task.FromResult(new ListToolsResult { Tools = [.. Server.ConnectedExperts.Select(i => i.ProtocolTool)] });
     })
-    .WithCallToolHandler((req, ct) => Server.ConnectedExperts.First(i => i.ProtocolTool.Name == req.Params?.Name).InvokeAsync(req, ct));
+    .WithCallToolHandler(async (req, ct) =>
+    {
+        try
+        {
+            var targetExpert = Server.ConnectedExperts.First(i => i.ProtocolTool.Name == req.Params?.Name);
+            return await targetExpert.InvokeAsync(req, ct);
+        }
+        catch (Exception e)
+        {
+            Debug.Fail(e.Message);
+            return null;
+        }
+    });
 
 builder.Services.AddSingleton(subscriptions);
 

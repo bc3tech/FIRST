@@ -13,6 +13,8 @@ using Common;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
 
 internal class Worker(ILoggerFactory loggerFactory, IConfiguration configuration) : IHostedService
 {
@@ -61,7 +63,10 @@ internal class Worker(ILoggerFactory loggerFactory, IConfiguration configuration
             WaitingForResponse = true;
 
             // Send the question to the WebSocket server
-            var request = new { action = "StreamAnswer", prompt = question };
+            var newChat = new ChatHistory();
+            newChat.AddUserMessage(question);
+            var request = new { action = "GetAnswer", prompt = newChat };
+            //var request = new { action = "StreamAnswer", prompt = question };
             var requestJson = JsonSerializer.Serialize(request);
             var requestBytes = Encoding.UTF8.GetBytes(requestJson);
             await client.SendAsync(new ArraySegment<byte>(requestBytes), WebSocketMessageType.Text, true, cancellationToken);

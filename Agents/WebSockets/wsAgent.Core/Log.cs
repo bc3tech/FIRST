@@ -3,7 +3,9 @@
 #pragma warning disable CS8019
 using System;
 
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using Microsoft.SemanticKernel;
 #pragma warning restore CS8019
 
 static partial class Log
@@ -16,10 +18,10 @@ static partial class Log
     internal static partial void IntroducingMyself(this ILogger logger);
 
     [LoggerMessage(2, LogLevel.Debug, "Prompt handled. Response: {promptResponse}")]
-    internal static partial void PromptHandledResponsePromptResponse(this ILogger logger, Microsoft.SemanticKernel.FunctionResult promptResponse);
+    internal static partial void PromptHandledResponsePromptResponse(this ILogger logger, ChatMessageContent promptResponse);
 
     [LoggerMessage(3, LogLevel.Error, "Error handling prompt: {prompt}")]
-    internal static partial void ErrorHandlingPromptPrompt(this ILogger logger, Exception exception, string prompt);
+    internal static partial void ErrorHandlingPromptPrompt(this ILogger logger, Exception exception, ChatMessageContent prompt);
 
     [LoggerMessage(4, LogLevel.Warning, "Responses Throttled! Waiting {retryAfter} seconds to try again...")]
     internal static partial void ResponsesThrottledWaitingRetryAfterSecondsToTryAgain(this ILogger logger, string retryAfter);
