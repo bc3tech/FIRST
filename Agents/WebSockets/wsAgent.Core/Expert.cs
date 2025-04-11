@@ -1,8 +1,7 @@
 ﻿namespace wsAgent.Core;
 
-using System.Diagnostics;
+using System.Collections.Immutable;
 using System.Net.WebSockets;
-using System.Runtime.Serialization;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -97,7 +96,7 @@ public abstract class Expert : IHostedService
             action = "Introduce",
             detail = new { this.Name, this.Description, this.CallbackPort, this.Secured }
         });
-        await SendMessageAsync(message, cancellationToken).ConfigureAwait(false);
+        await SendMessageAsync(_webSocket!, message, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<ChatHistory> GetAnswerAsync(ChatHistory chatHistory, CancellationToken cancellationToken)
@@ -109,30 +108,28 @@ public abstract class Expert : IHostedService
         return await GetAnswerInternalAsync(chatHistory, cancellationToken).ConfigureAwait(false);
     }
 
-    protected async Task<ChatHistory> GetAnswerInternalAsync(ChatHistory chatHistory, CancellationToken cancellationToken)
+    protected virtual async Task<ChatHistory> GetAnswerInternalAsync(ChatHistory chatHistory, CancellationToken cancellationToken)
     {
         return await ExecuteWithThrottleHandlingAsync(async () =>
         {
+            ChatHistory chatHistoryForThisAgent = [];
             try
             {
-                if (!chatHistory.Any(i => i.Role == AuthorRole.System))
-                {
-                    // If there is no system message, add one
-                    chatHistory.Insert(0, new ChatMessageContent(AuthorRole.System, ((OpenAIPromptExecutionSettings)_promptSettings).ChatSystemPrompt));
-                }
+                chatHistoryForThisAgent = new ChatHistory([new ChatMessageContent(AuthorRole.System, ((OpenAIPromptExecutionSettings)_promptSettings).ChatSystemPrompt), .. chatHistory.Where(i => i.Role != AuthorRole.System)]);
 
-                await _chatService.GetChatMessageContentAsync(chatHistory, _promptSettings, _kernel, cancellationToken).ConfigureAwait(false);
+                var completion = await _chatService.GetChatMessageContentAsync(chatHistoryForThisAgent, _promptSettings, _kernel, cancellationToken).ConfigureAwait(false);
+                chatHistoryForThisAgent.Add(completion);
 
-                _log.PromptHandledResponsePromptResponse(chatHistory.Last());
+                _log.PromptHandledResponsePromptResponse(chatHistoryForThisAgent.Last());
             }
             catch (Exception ex)
             {
-                _log.ErrorHandlingPromptPrompt(ex, chatHistory.Last());
+                _log.ErrorHandlingPromptPrompt(ex, chatHistoryForThisAgent.Last());
 
-                chatHistory.AddAssistantMessage(ex.Message);
+                chatHistoryForThisAgent.AddAssistantMessage(ex.Message);
             }
 
-            return chatHistory;
+            return chatHistoryForThisAgent;
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -183,11 +180,7 @@ public abstract class Expert : IHostedService
         }
     }
 
-    private async Task SendMessageAsync(string message, CancellationToken cancellationToken)
-    {
-        var messageBytes = Encoding.UTF8.GetBytes(message);
-        await _webSocket.SendAsync(new ArraySegment<byte>(messageBytes), WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
-    }
+    private static Task SendMessageAsync(WebSocket webSocket, string message, CancellationToken cancellationToken) => webSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(message)), WebSocketMessageType.Text, true, cancellationToken);
 
     protected async Task<T> ExecuteWithThrottleHandlingAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken, int maxRetries = 10)
     {
@@ -268,22 +261,17 @@ public abstract class Expert : IHostedService
 
     public virtual async Task HandleWebSocketAsync(WebSocket webSocket, CancellationToken cancellationToken)
     {
-        var buffer = new byte[1024 * 4];
         WebSocketReceiveResult? result = null;
         try
         {
-            result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken).ConfigureAwait(false);
-
-            while (!cancellationToken.IsCancellationRequested && !result.CloseStatus.HasValue)
+            do
             {
-                var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                var response = await ProcessMessageAsync(webSocket, message, cancellationToken).ConfigureAwait(false);
+                (result, ImmutableArray<byte> socketResponse) = await ReceiveSocketResponseAsync(webSocket, cancellationToken).ConfigureAwait(false);
+                var incomingActionRequest = Encoding.UTF8.GetString([.. socketResponse], 0, socketResponse.Length);
+                var responseFromActionHandler = await ProcessMessageAsync(webSocket, incomingActionRequest, cancellationToken).ConfigureAwait(false);
 
-                var responseBytes = Encoding.UTF8.GetBytes(response);
-                await webSocket.SendAsync(new ArraySegment<byte>(responseBytes), result.MessageType, result.EndOfMessage, cancellationToken).ConfigureAwait(false);
-
-                result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken).ConfigureAwait(false);
-            }
+                await SendMessageAsync(webSocket, responseFromActionHandler, cancellationToken).ConfigureAwait(false);
+            } while (!cancellationToken.IsCancellationRequested && !result.CloseStatus.HasValue);
         }
         catch (Exception e) when (e is OperationCanceledException or WebSocketException)
         {
@@ -299,6 +287,22 @@ public abstract class Expert : IHostedService
             catch (Exception e)
             {
                 _log.LogError(e, "Hit exception when trying to close the Websocket connection; disregarding");
+            }
+        }
+    }
+
+    private static async Task<(WebSocketReceiveResult lastReceiveResult, ImmutableArray<byte> responseBytes)> ReceiveSocketResponseAsync(WebSocket webSocket, CancellationToken cancellationToken)
+    {
+        List<byte> webSocketResponseBytes = [];
+        var buffer = new ArraySegment<byte>(new byte[1024 * 4]);
+
+        while (true)
+        {
+            WebSocketReceiveResult result = await webSocket.ReceiveAsync(buffer, cancellationToken).ConfigureAwait(false);
+            webSocketResponseBytes.AddRange(buffer[..result.Count]);
+            if (result.EndOfMessage)
+            {
+                return (result, webSocketResponseBytes.ToImmutableArray());
             }
         }
     }

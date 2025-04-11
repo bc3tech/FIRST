@@ -72,8 +72,9 @@ internal class Worker(ILoggerFactory loggerFactory, IConfiguration configuration
             await client.SendAsync(new ArraySegment<byte>(requestBytes), WebSocketMessageType.Text, true, cancellationToken);
 
             // Receive and print streaming responses
+            StringBuilder responseSoFar = new();
             var buffer = new byte[4];
-            while (client.State == WebSocketState.Open)
+            while (client.State is WebSocketState.Open)
             {
                 var result = await client.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
                 if (WaitingForResponse)
@@ -83,15 +84,16 @@ internal class Worker(ILoggerFactory loggerFactory, IConfiguration configuration
                     Console.CursorLeft = 0;
                 }
 
-                if (result.MessageType == WebSocketMessageType.Close)
+                if (result.MessageType is WebSocketMessageType.Close)
                 {
                     await client.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
                     Console.WriteLine("WebSocket connection closed.");
                 }
-                else if (result.MessageType == WebSocketMessageType.Text)
+                else if (result.MessageType is WebSocketMessageType.Text)
                 {
                     var response = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                    Console.Write(response);
+                    Debug.Write(response);
+                    responseSoFar.Append(response);
                 }
                 else
                 {
@@ -104,7 +106,12 @@ internal class Worker(ILoggerFactory loggerFactory, IConfiguration configuration
                 }
             }
 
-            Console.WriteLine();
+            Debug.WriteLine(string.Empty);
+            var chatMessages = JsonSerializer.Deserialize<JsonElement>(responseSoFar.ToString()).GetProperty("completion").Deserialize<ChatHistory>();
+            if (chatMessages is not null)
+            {
+                Console.WriteLine(chatMessages.Last().ToString());
+            }
 
             _log.TimeToAnswerTta(timer.Elapsed);
         } while (!cancellationToken.IsCancellationRequested);
