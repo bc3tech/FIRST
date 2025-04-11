@@ -52,8 +52,8 @@ public partial class TeamApi
             }
 
             JsonElement eltToTransform = JsonSerializer.SerializeToElement(new { teams }, JsonSerialzationOptions.Default);
-            JsonDocument filteredTeams = JsonCons.JmesPath.JsonTransformer.Transform(eltToTransform, jmesPathExpression);
-            this.Log?.LogTrace("JsonCons.JMESPath result: {jsonConsResult}", filteredTeams.RootElement.ToString());
+            JsonDocument filteredTeams = JsonTransformer.Transform(eltToTransform, jmesPathExpression);
+            this.Log?.JsonConsJMESPathResultJsonConsResult(filteredTeams.RootElement.ToString());
 
             if (filteredTeams is not null)
             {
@@ -65,7 +65,7 @@ public partial class TeamApi
             }
         }
 
-        this.Log?.LogDebug("Resulting document: {searchResults}", JsonSerializer.Serialize(results));
+        this.Log?.ResultingDocumentSearchResults(JsonSerializer.Serialize(results));
 
         return results;
     }
@@ -86,10 +86,10 @@ public partial class TeamApi
 
         List<TeamSimple>? matches = await GetDistrictTeamsAsync(districtKey).ConfigureAwait(false);
 
-        JsonDocument filteredTeams = JsonCons.JmesPath.JsonTransformer.Transform(JsonSerializer.SerializeToElement(matches, JsonSerialzationOptions.Default), jmesPathExpression);
+        JsonDocument filteredTeams = JsonTransformer.Transform(JsonSerializer.SerializeToElement(matches, JsonSerialzationOptions.Default), jmesPathExpression);
         matches = JsonSerializer.Deserialize<List<TeamSimple>>(filteredTeams, JsonSerialzationOptions.Default) ?? [];
 
-        this.Log?.LogDebug("Resulting document: {searchResults}", JsonSerializer.Serialize(matches));
+        this.Log?.ResultingDocumentSearchResults(JsonSerializer.Serialize(matches));
 
         return matches;
     }
