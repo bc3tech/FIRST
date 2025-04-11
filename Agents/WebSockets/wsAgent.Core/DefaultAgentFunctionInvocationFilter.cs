@@ -13,7 +13,7 @@ internal class DefaultFunctionInvocationFilter(ILogger log, ClientWebSocket sign
         {
             var msg = $"Running {context.Function.Name} ({context.Function.Description}) ...";
             log.LogTrace(msg);
-            signalr.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($@"{{ ""message"": ""{msg}"" }}")), WebSocketMessageType.Text, true, CancellationToken.None);
+            await signalr.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($@"{{ ""message"": ""{msg}"" }}")), WebSocketMessageType.Text, true, CancellationToken.None);
         },
         onEnd: async context =>
         {
@@ -29,19 +29,19 @@ internal class DefaultFunctionInvocationFilter(ILogger log, ClientWebSocket sign
             }
 
             log.MsgResultResult(msg, serializedValue);
-            signalr.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($@"{{ ""message"": ""{msg}"" }}")), WebSocketMessageType.Text, true, CancellationToken.None);
+            await signalr.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($@"{{ ""message"": ""{msg}"" }}")), WebSocketMessageType.Text, true, CancellationToken.None);
         },
         onAutoStart: async context =>
         {
             var msg = $"Running AUTO {context.Function.Name} ({context.Function.Description}) ...";
             log.LogTrace(msg);
-            signalr.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($@"{{ ""message"": ""{msg}"" }}")), WebSocketMessageType.Text, true, CancellationToken.None);
+            await signalr.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($@"{{ ""message"": ""{msg}"" }}")), WebSocketMessageType.Text, true, CancellationToken.None);
         },
         onAutoEnd: async context =>
         {
             var msg = $"AUTO {context.Function.Name} completed.";
             log.MsgResultResult(msg, context.Result.ToString());
-            signalr.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($@"{{ ""message"": ""{msg}"" }}")), WebSocketMessageType.Text, true, CancellationToken.None);
+            await signalr.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($@"{{ ""message"": ""{msg}"" }}")), WebSocketMessageType.Text, true, CancellationToken.None);
         }
 )
 { }

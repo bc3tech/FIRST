@@ -1,11 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Text;
-using System.Text.Json;
 
 using AgentsMcpServer;
-
-using Microsoft.Extensions.AI;
 
 using ModelContextProtocol.Protocol.Messages;
 using ModelContextProtocol.Protocol.Types;

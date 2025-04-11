@@ -17,7 +17,6 @@ using Microsoft.SemanticKernel.ChatCompletion;
 
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol.Messages;
-using ModelContextProtocol.Protocol.Types;
 using ModelContextProtocol.Server;
 
 using wsAgent.Core;

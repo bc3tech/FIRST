@@ -13,7 +13,6 @@ using Common;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 
 internal class Worker(ILoggerFactory loggerFactory, IConfiguration configuration) : IHostedService

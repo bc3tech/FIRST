@@ -3,18 +3,14 @@ namespace Orchestrator_WS;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
-using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Common;
-
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
-using Microsoft.SemanticKernel.Connectors.OpenAI;
 
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol.Messages;

@@ -2,7 +2,6 @@ using TBAAPI.V3Client.Api;
 
 using Teams_WS;
 
-using wsAgent.Core;
 using wsAgent.Core.Extensions;
 
 IHostApplicationBuilder builder = WebApplication.CreateBuilder(args)
